@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CloneUZ.Api/CloneUZ.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CloneUZ.Api.Tests/CloneUZ.Api.Tests.csproj" />
+  </Folder>
+</Solution>
