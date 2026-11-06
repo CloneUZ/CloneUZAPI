@@ -1,0 +1,6 @@
+@CloneUZ.API_HostAddress = http://localhost:5217
+
+GET {{CloneUZ.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
