@@ -11,6 +11,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ISeatRepository, SeatRepository>();
 builder.Services.AddScoped<ISeatMapService, SeatMapService>();
+builder.Services.AddScoped<IHoldService, HoldService>();
+builder.Services.AddOptions<SeatHoldOptions>()
+    .BindConfiguration(SeatHoldOptions.Section)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));

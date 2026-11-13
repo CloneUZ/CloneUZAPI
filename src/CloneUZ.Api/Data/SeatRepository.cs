@@ -1,15 +1,19 @@
+using System.Data;
 using CloneUZ.Api.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace CloneUZ.Api.Data;
 
 /// <summary>
-/// Доступ к местам в БД. Interface needed for mock unit test 
+/// Interface needed for mock unit test 
 /// </summary>
 public interface ISeatRepository
 {
     Task<WagonType?> GetWagonTypeAsync(Guid tripId, int wagonNumber, CancellationToken ct);
     Task<List<Seat>> GetSeatsAsync(Guid tripId, int wagonNumber, CancellationToken ct);
+
+    Task<bool> TryReserveAsync(Guid tripId, int wagonNumber, IReadOnlyCollection<int> seatNumbers, Guid userId,
+        DateTimeOffset now, DateTimeOffset reservedUntil, CancellationToken ct);
 }
 
 public sealed class SeatRepository(AppDbContext db) : ISeatRepository
@@ -25,4 +29,38 @@ public sealed class SeatRepository(AppDbContext db) : ISeatRepository
             .AsNoTracking() // AsNoTracking!!
             .Where(s => s.TripId == tripId && s.WagonNumber == wagonNumber)
             .ToListAsync(ct);
+
+    public async Task<bool> TryReserveAsync(Guid tripId, int wagonNumber, IReadOnlyCollection<int> seatNumbers, Guid userId,
+        DateTimeOffset now, DateTimeOffset reservedUntil, CancellationToken ct)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+        
+        var numbers = seatNumbers.ToArray();
+        await db.Database
+            .SqlQuery<int>($"""
+                SELECT "Id" AS "Value" FROM "Seats"
+                WHERE "TripId" = {tripId} AND "WagonNumber" = {wagonNumber} AND "SeatNumber" = ANY({numbers})
+                ORDER BY "SeatNumber"
+                FOR UPDATE
+                """)
+            .ToListAsync(ct);
+
+        var updated = await db.Seats
+            .Where(s => s.TripId == tripId && s.WagonNumber == wagonNumber && seatNumbers.Contains(s.SeatNumber)
+                        && (s.Status == SeatStatus.Available
+                            || (s.Status == SeatStatus.Reserved && s.ReservedUntil <= now)))
+            .ExecuteUpdateAsync(u => u
+                .SetProperty(s => s.Status, SeatStatus.Reserved)
+                .SetProperty(s => s.ReservedBy, (Guid?)userId)
+                .SetProperty(s => s.ReservedUntil, (DateTimeOffset?)reservedUntil), ct);
+
+        if (updated != seatNumbers.Count)
+        {
+            await tx.RollbackAsync(ct);
+            return false;
+        }
+
+        await tx.CommitAsync(ct);
+        return true;
+    }
 }
