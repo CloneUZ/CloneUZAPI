@@ -1,6 +1,5 @@
 namespace CloneUZ.Api.Domain;
 
-/// <summary>Статус места на конкретном рейсе.</summary>
 public enum SeatStatus
 {
     Available = 0,
@@ -21,11 +20,10 @@ public enum BerthLevel
     Upper = 2,
 }
 
-/// <summary>Характеристики места. [Flags] — можно комбинировать: Window | PowerOutlet.</summary>
 [Flags]
 public enum SeatFeatures
 {
-    None = 0,
+    None = 0, 
     Window = 1,
     PowerOutlet = 2,
     NearToilet = 4,
