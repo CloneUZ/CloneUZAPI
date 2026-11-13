@@ -9,8 +9,24 @@ public sealed record HoldSeatsRequest(IReadOnlyList<int> Seats);
 
 [ApiController]
 [Route("api/trips/{tripId:guid}/wagons/{wagonNumber:int}/holds")]
-public sealed class HoldsController(IHoldService holdService) : ControllerBase
+public sealed class HoldsController(IHoldService holdService, IReleaseService releaseService) : ControllerBase
 {
+    /// <summary>
+    /// Снять свой резерв. DELETE .../holds?seats=1&amp;seats=3 — конкретные места; без seats — все свои места в вагоне.
+    /// Идемпотентно: всегда 204, даже если снимать было нечего (так и положено DELETE).
+    /// </summary>
+    [HttpDelete]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Release(Guid tripId, int wagonNumber, [FromQuery] int[]? seats, CancellationToken ct)
+    {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            return Unauthorized();
+
+        await releaseService.ReleaseAsync(new ReleaseSeatsCommand(userId, tripId, wagonNumber, seats), ct);
+        return NoContent();
+    }
+
     [HttpPost]
     [ProducesResponseType<HoldDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

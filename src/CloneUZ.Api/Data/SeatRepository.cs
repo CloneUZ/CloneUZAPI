@@ -14,6 +14,8 @@ public interface ISeatRepository
 
     Task<bool> TryReserveAsync(Guid tripId, int wagonNumber, IReadOnlyCollection<int> seatNumbers, Guid userId,
         DateTimeOffset now, DateTimeOffset reservedUntil, CancellationToken ct);
+
+    Task<int> ReleaseAsync(Guid tripId, int wagonNumber, IReadOnlyCollection<int>? seatNumbers, Guid userId, CancellationToken ct);
 }
 
 public sealed class SeatRepository(AppDbContext db) : ISeatRepository
@@ -62,5 +64,18 @@ public sealed class SeatRepository(AppDbContext db) : ISeatRepository
 
         await tx.CommitAsync(ct);
         return true;
+    }
+
+    public Task<int> ReleaseAsync(Guid tripId, int wagonNumber, IReadOnlyCollection<int>? seatNumbers, Guid userId, CancellationToken ct)
+    {
+        var query = db.Seats.Where(s => s.TripId == tripId && s.WagonNumber == wagonNumber
+                                        && s.Status == SeatStatus.Reserved && s.ReservedBy == userId);
+        if (seatNumbers is { Count: > 0 })
+            query = query.Where(s => seatNumbers.Contains(s.SeatNumber));
+
+        return query.ExecuteUpdateAsync(u => u
+            .SetProperty(s => s.Status, SeatStatus.Available)
+            .SetProperty(s => s.ReservedBy, (Guid?)null)
+            .SetProperty(s => s.ReservedUntil, (DateTimeOffset?)null), ct);
     }
 }
