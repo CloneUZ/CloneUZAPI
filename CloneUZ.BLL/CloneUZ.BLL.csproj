@@ -7,11 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Interfaces\" />
-    <Folder Include="Services\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\CloneUZ.DAL\CloneUZ.DAL.csproj" />
     <ProjectReference Include="..\CloneUZ.Domain\CloneUZ.Domain.csproj" />
     <ProjectReference Include="..\DTOs\DTOs.csproj" />
