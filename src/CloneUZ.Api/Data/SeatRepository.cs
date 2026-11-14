@@ -16,6 +16,8 @@ public interface ISeatRepository
         DateTimeOffset now, DateTimeOffset reservedUntil, CancellationToken ct);
 
     Task<int> ReleaseAsync(Guid tripId, int wagonNumber, IReadOnlyCollection<int>? seatNumbers, Guid userId, CancellationToken ct);
+
+    Task<int> ReleaseExpiredBatchAsync(DateTimeOffset now, int batchSize, CancellationToken ct);
 }
 
 public sealed class SeatRepository(AppDbContext db) : ISeatRepository
@@ -78,4 +80,14 @@ public sealed class SeatRepository(AppDbContext db) : ISeatRepository
             .SetProperty(s => s.ReservedBy, (Guid?)null)
             .SetProperty(s => s.ReservedUntil, (DateTimeOffset?)null), ct);
     }
+
+    public Task<int> ReleaseExpiredBatchAsync(DateTimeOffset now, int batchSize, CancellationToken ct) =>
+        db.Database.ExecuteSqlAsync($"""
+            UPDATE "Seats" SET "Status" = {(int)SeatStatus.Available}, "ReservedBy" = NULL, "ReservedUntil" = NULL
+            WHERE "Id" IN (
+                SELECT "Id" FROM "Seats"
+                WHERE "Status" = {(int)SeatStatus.Reserved} AND "ReservedUntil" <= {now}
+                LIMIT {batchSize}
+                FOR UPDATE SKIP LOCKED)
+            """, ct);
 }

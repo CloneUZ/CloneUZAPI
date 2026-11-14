@@ -13,6 +13,12 @@ builder.Services.AddScoped<ISeatRepository, SeatRepository>();
 builder.Services.AddScoped<ISeatMapService, SeatMapService>();
 builder.Services.AddScoped<IHoldService, HoldService>();
 builder.Services.AddScoped<IReleaseService, ReleaseService>();
+builder.Services.AddScoped<IExpiredHoldCleaner, ExpiredHoldCleaner>();
+builder.Services.AddHostedService<ExpiredHoldSweeper>();
+builder.Services.AddOptions<ExpiredHoldSweeperOptions>()
+    .BindConfiguration(ExpiredHoldSweeperOptions.Section)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 builder.Services.AddOptions<SeatHoldOptions>()
     .BindConfiguration(SeatHoldOptions.Section)
     .ValidateDataAnnotations()
