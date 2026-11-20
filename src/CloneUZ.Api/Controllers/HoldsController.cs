@@ -40,7 +40,7 @@ public sealed class HoldsController(IHoldService holdService, IReleaseService re
         var result = await holdService.HoldAsync(new HoldSeatsCommand(userId, tripId, wagonNumber, request.Seats), ct);
         return result.IsSuccess ? StatusCode(StatusCodes.Status201Created, result.Value) : ToProblem(result.Error!);
     }
-    
+
     private ObjectResult ToProblem(Error error)
     {
         var status = error.Kind switch

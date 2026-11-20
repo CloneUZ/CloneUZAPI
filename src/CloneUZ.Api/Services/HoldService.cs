@@ -1,6 +1,7 @@
 using CloneUZ.Api.Common;
 using CloneUZ.Api.Data;
 using CloneUZ.Api.Domain;
+using CloneUZ.Api.Realtime;
 using Microsoft.Extensions.Options;
 
 namespace CloneUZ.Api.Services;
@@ -17,6 +18,7 @@ public interface IHoldService
 public sealed class HoldService(
     ISeatRepository seats,
     ISeatLockService locks,
+    ISeatMapNotifier notifier,
     IOptions<SeatHoldOptions> options,
     TimeProvider clock,
     ILogger<HoldService> logger) : IHoldService
@@ -56,6 +58,7 @@ public sealed class HoldService(
                 new Dictionary<string, object?> { ["seats"] = seatNumbers });
         }
 
+        await notifier.SeatsChangedAsync(command.TripId, command.WagonNumber, seatNumbers, SeatStatus.Reserved);
         return new HoldDto(command.TripId, command.WagonNumber, seatNumbers, expiresAt);
     }
 

@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using CloneUZ.Api.Data;
 using CloneUZ.Api.Infrastructure;
+using CloneUZ.Api.Realtime;
 using CloneUZ.Api.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,14 @@ builder.Services.AddScoped<ISeatRepository, SeatRepository>();
 builder.Services.AddScoped<ISeatMapService, SeatMapService>();
 builder.Services.AddScoped<IHoldService, HoldService>();
 builder.Services.AddScoped<IReleaseService, ReleaseService>();
+
+// SignalR: живая схема мест. Redis backplane — событие с одного экземпляра API доходит
+// до клиентов, подключённых к другим экземплярам (горизонтальное масштабирование).
+builder.Services.AddSignalR()
+    .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
+    .AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis")!,
+        o => o.Configuration.ChannelPrefix = RedisChannel.Literal("cloneuz"));
+builder.Services.AddSingleton<ISeatMapNotifier, SeatMapNotifier>();
 builder.Services.AddScoped<IExpiredHoldCleaner, ExpiredHoldCleaner>();
 builder.Services.AddHostedService<ExpiredHoldSweeper>();
 builder.Services.AddOptions<ExpiredHoldSweeperOptions>()
@@ -72,6 +81,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
+app.UseStaticFiles(); // wwwroot/seat-map.html — демо-клиент для презентации
 app.MapControllers();
+app.MapHub<SeatMapHub>(SeatMapHub.Path);
 
 await app.RunAsync();

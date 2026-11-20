@@ -1,3 +1,4 @@
+using CloneUZ.Api.Realtime;
 using Microsoft.Extensions.Options;
 
 namespace CloneUZ.Api.Services;
@@ -22,7 +23,10 @@ public sealed class ExpiredHoldSweeper(
 
                 var released = await cleaner.CleanAsync(stoppingToken);
                 if (released > 0)
+                {
                     logger.LogInformation("Released {Count} expired seat holds", released);
+                    await scope.ServiceProvider.GetRequiredService<ISeatMapNotifier>().SeatMapsChangedAsync();
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

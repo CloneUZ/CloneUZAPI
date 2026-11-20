@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using CloneUZ.Api.Common;
 using CloneUZ.Api.Data;
 using CloneUZ.Api.Domain;
+using CloneUZ.Api.Realtime;
 using CloneUZ.Api.Services;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -22,7 +23,7 @@ public sealed class HoldServiceTests
     public HoldServiceTests()
     {
         _repo.Setup(r => r.GetWagonTypeAsync(TripId, 2, It.IsAny<CancellationToken>())).ReturnsAsync(WagonType.Compartment);
-        _sut = new HoldService(_repo.Object, _locks.Object, Options.Create(new SeatHoldOptions()), new FakeTimeProvider(Now), NullLogger<HoldService>.Instance);
+        _sut = new HoldService(_repo.Object, _locks.Object, Mock.Of<ISeatMapNotifier>(), Options.Create(new SeatHoldOptions()), new FakeTimeProvider(Now), NullLogger<HoldService>.Instance);
     }
 
     private Task<Result<HoldDto>> Hold(params int[] seats) =>

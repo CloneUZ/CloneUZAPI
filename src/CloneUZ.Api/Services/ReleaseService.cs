@@ -1,5 +1,6 @@
 using CloneUZ.Api.Data;
 using CloneUZ.Api.Domain;
+using CloneUZ.Api.Realtime;
 
 namespace CloneUZ.Api.Services;
 
@@ -10,7 +11,7 @@ public interface IReleaseService
     Task<int> ReleaseAsync(ReleaseSeatsCommand command, CancellationToken ct);
 }
 
-public sealed class ReleaseService(ISeatRepository seats, ISeatLockService locks, ILogger<ReleaseService> logger) : IReleaseService
+public sealed class ReleaseService(ISeatRepository seats, ISeatLockService locks, ISeatMapNotifier notifier, ILogger<ReleaseService> logger) : IReleaseService
 {
     public async Task<int> ReleaseAsync(ReleaseSeatsCommand command, CancellationToken ct)
     {
@@ -28,6 +29,9 @@ public sealed class ReleaseService(ISeatRepository seats, ISeatLockService locks
         {
             logger.LogWarning(ex, "Failed to release Redis seat locks");
         }
+
+        if (released > 0)
+            await notifier.SeatsChangedAsync(command.TripId, command.WagonNumber, seatNumbers, SeatStatus.Available);
 
         return released;
     }
