@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using CloneUZ.Api.Data;
 using CloneUZ.Api.Services;
 using Moq;
@@ -10,9 +11,10 @@ public sealed class ReleaseServiceTests
     private static readonly Guid UserId = Guid.NewGuid();
 
     private readonly Mock<ISeatRepository> _repo = new();
+    private readonly Mock<ISeatLockService> _locks = new() { DefaultValue = DefaultValue.Empty };
     private readonly ReleaseService _sut;
 
-    public ReleaseServiceTests() => _sut = new ReleaseService(_repo.Object);
+    public ReleaseServiceTests() => _sut = new ReleaseService(_repo.Object, _locks.Object, NullLogger<ReleaseService>.Instance);
 
     [Fact]
     public async Task Passes_distinct_seats_and_returns_released_count()

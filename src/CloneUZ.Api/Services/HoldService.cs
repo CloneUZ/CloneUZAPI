@@ -14,7 +14,12 @@ public interface IHoldService
     Task<Result<HoldDto>> HoldAsync(HoldSeatsCommand command, CancellationToken ct);
 }
 
-public sealed class HoldService(ISeatRepository seats, IOptions<SeatHoldOptions> options, TimeProvider clock) : IHoldService
+public sealed class HoldService(
+    ISeatRepository seats,
+    ISeatLockService locks,
+    IOptions<SeatHoldOptions> options,
+    TimeProvider clock,
+    ILogger<HoldService> logger) : IHoldService
 {
     private readonly SeatHoldOptions _options = options.Value;
 
@@ -28,12 +33,36 @@ public sealed class HoldService(ISeatRepository seats, IOptions<SeatHoldOptions>
         var now = clock.GetUtcNow();
         var expiresAt = now + _options.Ttl;
 
+        var redisLocked = false;
+        try
+        {
+            var conflicts = await locks.TryAcquireAsync(command.TripId, command.WagonNumber, seatNumbers, command.UserId, _options.Ttl);
+            if (conflicts.Length > 0)
+                return Error.Conflict("seats_unavailable", "Some of the selected seats are no longer available.",
+                    new Dictionary<string, object?> { ["seats"] = conflicts });
+            redisLocked = true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+          
+            logger.LogWarning(ex, "Redis seat lock unavailable, falling back to database only");
+        }
+
         var reserved = await seats.TryReserveAsync(command.TripId, command.WagonNumber, seatNumbers, command.UserId, now, expiresAt, ct);
         if (!reserved)
+        {
+            if (redisLocked) await TryUnlockAsync(command, seatNumbers);
             return Error.Conflict("seats_unavailable", "Some of the selected seats are no longer available.",
                 new Dictionary<string, object?> { ["seats"] = seatNumbers });
+        }
 
         return new HoldDto(command.TripId, command.WagonNumber, seatNumbers, expiresAt);
+    }
+
+    private async Task TryUnlockAsync(HoldSeatsCommand command, int[] seatNumbers)
+    {
+        try { await locks.ReleaseAsync(command.TripId, command.WagonNumber, seatNumbers, command.UserId); }
+        catch (Exception ex) { logger.LogWarning(ex, "Failed to roll back Redis seat lock"); }
     }
 
     private async Task<Error?> ValidateAsync(HoldSeatsCommand command, int[] seatNumbers, CancellationToken ct)

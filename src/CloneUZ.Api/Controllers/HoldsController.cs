@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CloneUZ.Api.Common;
 using CloneUZ.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace CloneUZ.Api.Controllers;
 
@@ -11,10 +12,6 @@ public sealed record HoldSeatsRequest(IReadOnlyList<int> Seats);
 [Route("api/trips/{tripId:guid}/wagons/{wagonNumber:int}/holds")]
 public sealed class HoldsController(IHoldService holdService, IReleaseService releaseService) : ControllerBase
 {
-    /// <summary>
-    /// Снять свой резерв. DELETE .../holds?seats=1&amp;seats=3 — конкретные места; без seats — все свои места в вагоне.
-    /// Идемпотентно: всегда 204, даже если снимать было нечего (так и положено DELETE).
-    /// </summary>
     [HttpDelete]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -28,11 +25,13 @@ public sealed class HoldsController(IHoldService holdService, IReleaseService re
     }
 
     [HttpPost]
+    [EnableRateLimiting("booking")]
     [ProducesResponseType<HoldDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> Hold(Guid tripId, int wagonNumber, HoldSeatsRequest request, CancellationToken ct)
     {
         if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
@@ -56,3 +55,4 @@ public sealed class HoldsController(IHoldService holdService, IReleaseService re
         return problem;
     }
 }
+

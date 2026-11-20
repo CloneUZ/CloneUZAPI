@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using CloneUZ.Api.Common;
 using CloneUZ.Api.Data;
 using CloneUZ.Api.Domain;
@@ -15,12 +16,13 @@ public sealed class HoldServiceTests
     private static readonly DateTimeOffset Now = new(2026, 11, 13, 12, 0, 0, TimeSpan.Zero);
 
     private readonly Mock<ISeatRepository> _repo = new();
+    private readonly Mock<ISeatLockService> _locks = new() { DefaultValue = DefaultValue.Empty };
     private readonly HoldService _sut;
 
     public HoldServiceTests()
     {
         _repo.Setup(r => r.GetWagonTypeAsync(TripId, 2, It.IsAny<CancellationToken>())).ReturnsAsync(WagonType.Compartment);
-        _sut = new HoldService(_repo.Object, Options.Create(new SeatHoldOptions()), new FakeTimeProvider(Now));
+        _sut = new HoldService(_repo.Object, _locks.Object, Options.Create(new SeatHoldOptions()), new FakeTimeProvider(Now), NullLogger<HoldService>.Instance);
     }
 
     private Task<Result<HoldDto>> Hold(params int[] seats) =>
@@ -41,6 +43,41 @@ public sealed class HoldServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal([1, 3], result.Value.Seats);
         Assert.Equal(Now.AddMinutes(15), result.Value.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task Redis_conflict_returns_409_without_touching_database()
+    {
+        _locks.Setup(l => l.TryAcquireAsync(TripId, 2, It.IsAny<IReadOnlyList<int>>(), UserId, It.IsAny<TimeSpan>()))
+            .ReturnsAsync([3]);
+
+        var result = await Hold(1, 3);
+
+        Assert.Equal(ErrorKind.Conflict, result.Error!.Kind);
+        _repo.Verify(r => r.TryReserveAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<IReadOnlyCollection<int>>(),
+            It.IsAny<Guid>(), It.IsAny<DateTimeOffset>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Database_conflict_rolls_back_redis_lock()
+    {
+        RepoReserves(false);
+
+        await Hold(1);
+
+        _locks.Verify(l => l.ReleaseAsync(TripId, 2, It.Is<IReadOnlyList<int>>(s => s.SequenceEqual(new[] { 1 })), UserId), Times.Once);
+    }
+
+    [Fact]
+    public async Task Redis_down_falls_back_to_database()
+    {
+        _locks.Setup(l => l.TryAcquireAsync(TripId, 2, It.IsAny<IReadOnlyList<int>>(), UserId, It.IsAny<TimeSpan>()))
+            .ThrowsAsync(new TimeoutException("redis down"));
+        RepoReserves(true);
+
+        var result = await Hold(1);
+
+        Assert.True(result.IsSuccess);
     }
 
     [Fact]
