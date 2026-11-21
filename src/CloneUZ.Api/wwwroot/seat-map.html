@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>CloneUZ — живая схема мест (демо)</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 24px; background: #f6f7f9; }
+  .seats { display: grid; grid-template-columns: repeat(8, 56px); gap: 8px; margin: 16px 0; }
+  .seat { height: 48px; border: 0; border-radius: 8px; font-weight: 600; cursor: pointer; color: #fff; }
+  .Available { background: #2e9d5b; } .Reserved { background: #e0a100; } .Sold { background: #9aa0a6; cursor: default; }
+  .mine { outline: 3px solid #1a56db; }
+  #log { font: 12px monospace; background: #fff; padding: 8px; height: 180px; overflow: auto; border-radius: 8px; }
+  button.action { margin-right: 8px; padding: 6px 12px; }
+</style>
+</head>
+<body>
+<h2>Вагон 2 · рейс 1111… · <span id="conn">подключение…</span></h2>
+<div>Пользователь: <code id="user"></code> (откройте страницу во второй вкладке — это будет другой пользователь)</div>
+<div class="seats" id="seats"></div>
+<button class="action" id="release">Снять мои резервы</button>
+<span style="color:#2e9d5b">■ свободно</span> <span style="color:#e0a100">■ резерв</span> <span style="color:#9aa0a6">■ продано</span>
+<h3>События SignalR</h3>
+<div id="log"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8/dist/browser/signalr.min.js"></script>
+<script>
+const TRIP = '11111111-1111-1111-1111-111111111111', WAGON = 2;
+const API = `/api/trips/${TRIP}/wagons/${WAGON}`;
+const USER = crypto.randomUUID();
+const mine = new Set();
+document.getElementById('user').textContent = USER;
+
+const log = m => { const el = document.getElementById('log'); el.innerHTML = `${new Date().toLocaleTimeString()} ${m}<br>` + el.innerHTML; };
+const headers = { 'Content-Type': 'application/json', 'X-Debug-User': USER };
+
+async function load() {
+  const map = await (await fetch(`${API}/seat-map`)).json();
+  const box = document.getElementById('seats');
+  box.innerHTML = '';
+  for (const s of map.seats) {
+    const b = document.createElement('button');
+    b.id = 'seat-' + s.number; b.textContent = s.number;
+    b.className = 'seat ' + s.status + (mine.has(s.number) ? ' mine' : '');
+    b.onclick = () => hold(s.number);
+    box.appendChild(b);
+  }
+}
+
+function paint(seats, status) {
+  for (const n of seats) {
+    const b = document.getElementById('seat-' + n);
+    if (b) b.className = 'seat ' + status + (mine.has(n) ? ' mine' : '');
+  }
+}
+
+async function hold(n) {
+  const r = await fetch(`${API}/holds`, { method: 'POST', headers, body: JSON.stringify({ seats: [n] }) });
+  if (r.status === 201) { mine.add(n); paint([n], 'Reserved'); }
+  log(`POST hold ${n} → ${r.status}`);
+}
+
+document.getElementById('release').onclick = async () => {
+  const r = await fetch(`${API}/holds`, { method: 'DELETE', headers });
+  log(`DELETE holds → ${r.status}`);
+  mine.clear(); load();
+};
+
+const conn = new signalR.HubConnectionBuilder().withUrl('/hubs/seat-map').withAutomaticReconnect().build();
+conn.on('SeatsChanged', e => {
+  log(`SeatsChanged ${JSON.stringify(e.seats)} → ${e.status}`);
+  if (e.seats) paint(e.seats, e.status); else load();
+});
+conn.on('SeatMapsChanged', () => { log('SeatMapsChanged → перечитываю схему'); load(); });
+conn.onreconnected(() => conn.invoke('JoinWagon', TRIP, WAGON));
+
+(async () => {
+  await load();
+  await conn.start();
+  await conn.invoke('JoinWagon', TRIP, WAGON);
+  document.getElementById('conn').textContent = 'онлайн ✔';
+})();
+</script>
+</body>
+</html>

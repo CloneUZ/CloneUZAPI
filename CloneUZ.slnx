@@ -1,8 +1,8 @@
 <Solution>
-  <Project Path="CloneUZ.API/CloneUZ.API.csproj" />
-  <Project Path="CloneUZ.BLL/CloneUZ.BLL.csproj" />
-  <Project Path="CloneUZ.DAL/CloneUZ.DAL.csproj" />
-  <Project Path="CloneUZ.Domain/CloneUZ.Domain.csproj" />
-  <Project Path="DTOs/DTOs.csproj" />
-  <Project Path="Models/Models.csproj" />
+  <Folder Name="/src/">
+    <Project Path="src/CloneUZ.Api/CloneUZ.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CloneUZ.Api.Tests/CloneUZ.Api.Tests.csproj" />
+  </Folder>
 </Solution>
