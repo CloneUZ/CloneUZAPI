@@ -69,6 +69,7 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.UseSwaggerUI(o => o.SwaggerEndpoint("/openapi/v1.json", "CloneUZ API")); // /swagger
 
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
@@ -81,7 +82,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
-app.UseStaticFiles(); // wwwroot/seat-map.html — демо-клиент для презентации
+app.UseStaticFiles(); // wwwroot/seat-map.html — demo SignaR
 app.MapControllers();
 app.MapHub<SeatMapHub>(SeatMapHub.Path);
 
